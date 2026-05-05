@@ -18,12 +18,14 @@ export CLOUDFLARE_ACCOUNT_ID="bf7302689d0dd0a365e5199aee2d3192"
 
 The API token must have the following permissions:
 - `Account:Read` – read account info
+- `Zone:Read` – list zones (shared with DNS operations)
+- `DNS:Read` / `DNS:Edit` – DNS operations (shared with DNS package)
 - `R2 Bucket:Read` – list/read buckets
 - `R2 Bucket:Edit` – create/delete buckets (if mutations are needed)
 - `R2 Object:Read` – list/read objects
-- `R2 Object:Edit` – upload/delete objects (if mutations are needed)
+- `R2 Object:Edit` – upload/delete objects (if mutations needed)
 
-If the current token returns `Authentication error` for R2 endpoints, the token lacks R2 permissions and must be regenerated in the Cloudflare Dashboard with R2 scopes.
+**Note**: The `pi-r2` token used by PestGG team includes both DNS and R2 permissions. If you see `Authentication error` for R2 endpoints, verify your token includes `Workers R2 Storage:Read` and `Workers R2 Storage:Edit` permissions.
 
 ## API Base URL
 
@@ -120,6 +122,8 @@ If R2 endpoints return `Authentication error` (10000):
 2. Go to Cloudflare Dashboard > My Profile > API Tokens.
 3. Create a new token with these permissions:
    - Account: Read
-   - R2 Bucket: Read (and Edit if mutations needed)
-   - R2 Object: Read (and Edit if mutations needed)
+   - Zone: Read
+   - DNS: Read / Edit
+   - R2 Bucket: Read / Edit
+   - R2 Object: Read / Edit
 4. Update `CLOUDFLARE_API_TOKEN` in `~/.zshrc` and run `source ~/.zshrc`.
