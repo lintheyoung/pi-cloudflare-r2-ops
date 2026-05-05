@@ -138,21 +138,142 @@ curl -s -X DELETE "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACC
   -H "Content-Type: application/json"
 ```
 
-### Get bucket public access URL
-
-If a bucket allows public access, objects can be accessed via:
-- Default endpoint: `https://pub-<hash>.r2.dev/<object-key>`
-- Custom domain: `https://files.app.pest.gg/<object-key>` (if configured)
-
-To check if public access is enabled and get the default public URL:
+### Upload an object to a bucket
 
 ```bash
 BUCKET_NAME="my-bucket"
-# List domains to see if public access or custom domains are configured
+OBJECT_KEY="path/to/file.txt"
+LOCAL_FILE="/path/to/local/file.txt"
+CONTENT_TYPE="text/plain"
+
+curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects/$OBJECT_KEY" \\
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+  -H "Content-Type: $CONTENT_TYPE" \\
+  --data-binary @"$LOCAL_FILE" | python3 -m json.tool
+```
+
+For binary files (images, PDFs, etc.), set the correct `Content-Type`:
+- Images: `image/png`, `image/jpeg`, `image/webp`
+- PDFs: `application/pdf`
+- JSON: `application/json`
+- ZIP: `application/zip`
+
+### Download an object from a bucket
+
+Objects can be downloaded via their public URL (if the bucket has public access or a custom domain configured).
+
+First, get the object's access URL, then download:
+
+```bash
+# Option 1: Using the managed public domain (pub-xxx.r2.dev)
+# First check if public access is enabled:
+curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/domains/managed" \\
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+  -H "Content-Type: application/json"
+
+# Then download using the public URL:
+# curl -s -o local-file.txt "https://pub-<hash>.r2.dev/path/to/object-key"
+
+# Option 2: Using a custom domain (e.g., files.app.pest.gg)
+# curl -s -o local-file.txt "https://files.app.pest.gg/path/to/object-key"
+```
+
+### Delete an object from a bucket
+
+```bash
+BUCKET_NAME="my-bucket"
+OBJECT_KEY="path/to/file.txt"
+
+curl -s -X DELETE "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects/$OBJECT_KEY" \\
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+  -H "Content-Type: application/json" | python3 -m json.tool
+```
+
+### Get object public access URL
+
+To construct the public URL for an object, first check the bucket's access configuration:
+
+```bash
+BUCKET_NAME="my-bucket"
+OBJECT_KEY="path/to/file.txt"
+
+# Check custom domains
 curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/domains/custom" \\
   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
   -H "Content-Type: application/json"
+
+# Check managed (default) public domain
+curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/domains/managed" \\
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+  -H "Content-Type: application/json"
 ```
+
+**URL construction rules:**
+- If a custom domain is configured (e.g., `files.app.pest.gg`): `https://files.app.pest.gg/{OBJECT_KEY}`
+- If managed public access is enabled: `https://pub-<hash>.r2.dev/{OBJECT_KEY}`
+- If neither is enabled, the object is private and cannot be accessed via public URL.
+
+### Configure bucket public access
+
+Enable or disable the default public access endpoint (`pub-xxx.r2.dev`) for a bucket:
+
+```bash
+BUCKET_NAME="my-bucket"
+
+# Enable public access
+curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/domains/managed" \\
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"enabled": true}' | python3 -m json.tool
+
+# Disable public access
+curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/domains/managed" \\
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"enabled": false}' | python3 -m json.tool
+```
+
+**Warning**: Enabling public access makes ALL objects in the bucket accessible via the public URL. Use custom domains with specific DNS records for more granular control.
+
+### Configure bucket CORS
+
+Get current CORS configuration:
+
+```bash
+BUCKET_NAME="my-bucket"
+curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/cors" \\
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+  -H "Content-Type: application/json"
+```
+
+Update CORS configuration:
+
+```bash
+BUCKET_NAME="my-bucket"
+curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/cors" \\
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "rules": [
+      {
+        "allowed": {
+          "origins": ["https://app.pest.gg", "https://app.momaotou.com"],
+          "methods": ["GET", "HEAD", "PUT"],
+          "headers": ["*"]
+        },
+        "exposeHeaders": ["ETag"],
+        "maxAgeSeconds": 3600
+      }
+    ]
+  }' | python3 -m json.tool
+```
+
+**CORS rule fields:**
+- `allowed.origins`: List of allowed origins (use `["*"]` for all)
+- `allowed.methods`: HTTP methods allowed (`GET`, `HEAD`, `PUT`, `POST`, `DELETE`)
+- `allowed.headers`: Allowed request headers
+- `exposeHeaders`: Headers exposed to the client
+- `maxAgeSeconds`: How long browsers cache the CORS preflight response
 
 ## Safety Rules
 
@@ -173,7 +294,7 @@ Before executing ANY mutating operation (create bucket, delete bucket, delete ob
 5. ONLY execute the API call if the user replies with "yes" or "y".
 6. If the user does NOT reply "yes" or "y", STOP and report: "Operation cancelled by user. No changes were made."
 
-This gate applies to ALL of the following: creating buckets, deleting buckets, deleting objects, adding custom domains, deleting custom domains. You are NEVER allowed to skip this confirmation step.
+This gate applies to ALL of the following: creating buckets, deleting buckets, uploading objects, deleting objects, adding custom domains, deleting custom domains, enabling/disabling public access, modifying CORS configuration. You are NEVER allowed to skip this confirmation step.
 
 ## Troubleshooting R2 Auth Errors
 
