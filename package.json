@@ -1,0 +1,10 @@
+{
+  "name": "pi-cloudflare-r2-ops",
+  "version": "1.0.0",
+  "description": "Cloudflare R2 DevOps SOP for Pi coding agent",
+  "keywords": ["pi-package", "cloudflare", "r2", "sop"],
+  "pi": {
+    "skills": ["./skills"],
+    "prompts": ["./prompts"]
+  }
+}
