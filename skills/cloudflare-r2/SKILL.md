@@ -94,6 +94,66 @@ curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUN
   -H "Content-Type: application/json"
 ```
 
+### List custom domains for a bucket
+
+R2 buckets can be accessed via custom domains (e.g., `files.app.pest.gg`) instead of the default `public.r2.dev` endpoint.
+
+```bash
+BUCKET_NAME="my-bucket"
+curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/domains/custom" \\
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+  -H "Content-Type: application/json"
+```
+
+### Add a custom domain to a bucket
+
+**Prerequisites:**
+1. The domain must already have DNS records pointing to Cloudflare (the zone must be managed in the same account).
+2. A CNAME or A record must exist for the subdomain in DNS.
+
+```bash
+BUCKET_NAME="my-bucket"
+DOMAIN="files.example.com"
+ZONE_ID="your-zone-id"
+curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/domains/custom" \\
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "domain": "'"$DOMAIN"'",
+    "zoneId": "'"$ZONE_ID"'",
+    "minTLS": "1.2",
+    "enabled": true
+  }'
+```
+
+**After adding the custom domain**, you must also create a DNS CNAME record pointing the subdomain to `public.r2.dev` (or let Cloudflare handle it automatically if the zone is proxied).
+
+### Delete a custom domain from a bucket
+
+```bash
+BUCKET_NAME="my-bucket"
+DOMAIN="files.example.com"
+curl -s -X DELETE "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/domains/custom/$DOMAIN" \\
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+  -H "Content-Type: application/json"
+```
+
+### Get bucket public access URL
+
+If a bucket allows public access, objects can be accessed via:
+- Default endpoint: `https://pub-<hash>.r2.dev/<object-key>`
+- Custom domain: `https://files.app.pest.gg/<object-key>` (if configured)
+
+To check if public access is enabled and get the default public URL:
+
+```bash
+BUCKET_NAME="my-bucket"
+# List domains to see if public access or custom domains are configured
+curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/domains/custom" \\
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+  -H "Content-Type: application/json"
+```
+
 ## Safety Rules
 
 - Never expose `CLOUDFLARE_API_TOKEN` in chat output or commit messages.
@@ -113,7 +173,7 @@ Before executing ANY mutating operation (create bucket, delete bucket, delete ob
 5. ONLY execute the API call if the user replies with "yes" or "y".
 6. If the user does NOT reply "yes" or "y", STOP and report: "Operation cancelled by user. No changes were made."
 
-This gate applies to ALL of the following: creating buckets, deleting buckets, deleting objects. You are NEVER allowed to skip this confirmation step.
+This gate applies to ALL of the following: creating buckets, deleting buckets, deleting objects, adding custom domains, deleting custom domains. You are NEVER allowed to skip this confirmation step.
 
 ## Troubleshooting R2 Auth Errors
 
